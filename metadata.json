@@ -1,0 +1,9 @@
+{
+  "name": "Nexus Study Manager",
+  "description": "An AI-powered Study Helper and Daily Life Manager with task tracking, pomodoro focus, and a direct AI Tutor integrating Gemini server-side.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
+

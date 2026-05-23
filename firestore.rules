@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'xp', 'level', 'streak', 'createdAt', 'updatedAt']) &&
+             data.email is string && data.email.size() <= 256 &&
+             data.xp is number &&
+             data.level is number &&
+             data.streak is number &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && request.auth.uid == userId && isValidId(userId);
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) &&
+                       isValidUser(incoming()) && incoming().createdAt == request.time;
+      allow update: if isSignedIn() && request.auth.uid == userId && isValidId(userId) &&
+                       isValidUser(incoming()) && incoming().updatedAt == request.time &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         (incoming().diff(existing()).affectedKeys().hasOnly(['xp', 'level', 'streak', 'updatedAt'])) ||
+                         (incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt']))
+                       );
+      
+      function isValidTask(data) {
+        return data.keys().hasAll(['userId', 'title', 'type', 'status', 'createdAt', 'updatedAt']) &&
+               data.userId is string && data.userId == request.auth.uid &&
+               data.title is string && data.title.size() <= 200 &&
+               data.type is string && data.type in ['study', 'habit', 'todo'] &&
+               data.status is string && data.status in ['pending', 'completed'] &&
+               data.createdAt is timestamp &&
+               data.updatedAt is timestamp;
+      }
+
+      match /tasks/{taskId} {
+        allow get: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(taskId);
+        allow list: if isSignedIn() && request.auth.uid == userId && isValidId(userId);
+        allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(taskId) &&
+                         isValidTask(incoming()) && incoming().createdAt == request.time;
+        allow update: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(taskId) &&
+                         isValidTask(incoming()) && incoming().updatedAt == request.time &&
+                         incoming().createdAt == existing().createdAt &&
+                         (
+                           (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])) ||
+                           (incoming().diff(existing()).affectedKeys().hasOnly(['title', 'type', 'updatedAt']))
+                         );
+        allow delete: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(taskId);
+      }
+    }
+  }
+}
